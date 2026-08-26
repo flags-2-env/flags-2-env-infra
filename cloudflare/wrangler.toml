@@ -1,0 +1,4 @@
+name = "flags-2-env-edge"
+main = "worker.js"
+compatibility_date = "2026-08-01"
+

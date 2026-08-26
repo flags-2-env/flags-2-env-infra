@@ -1,0 +1,4 @@
+name = "flags-2-env-infra"
+kind = "infra"
+version = "0.1.0"
+
