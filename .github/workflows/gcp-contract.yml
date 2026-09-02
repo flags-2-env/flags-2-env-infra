@@ -1,0 +1,88 @@
+name: gcp-contract
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gcp-contract-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out exact pull-request head
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          persist-credentials: false
+
+      - name: Validate deployment declaration
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          path = Path('deploy/gcp-cloud-run.json')
+          document = json.loads(path.read_text())
+
+          assert document['schemaVersion'] == 'ores.gcp-cloud-run.org.v1'
+          assert document['organization'] == 'flags-2-env'
+          assert document['canonicalDeploymentRepository'] == 'ORESoftware/k8s-cluster'
+          assert document['gcp']['state'] == 'planned'
+          assert document['gcp']['projectId'] is None
+
+          expected = {
+              'web-server': ('flags-2-env/flags-2-env-web-server.rs', 'public'),
+              'admin-web-server': ('flags-2-env/flags-2-env-admin-web-server.rs', 'private'),
+              'api-server': ('flags-2-env/flags-2-env-api-server.rs', 'public'),
+              'admin-api-server': ('flags-2-env/flags-2-env-admin-api-server.rs', 'private'),
+          }
+          actual = {
+              item['role']: (item['repository'], item['ingress'])
+              for item in document['services']
+          }
+          assert actual == expected
+
+          probes = document['probes']
+          assert probes['startup']['path'] == '/startupz'
+          assert probes['liveness'] == {'path': '/healthz', 'dependencyFree': True}
+          assert probes['readiness']['path'] == '/readyz'
+          assert probes['buildIdentity'] == {
+              'path': '/version',
+              'cacheControl': 'no-store',
+          }
+          assert probes['metrics'] == {'path': '/metrics', 'exposure': 'private'}
+
+          runtime = document['runtime']
+          assert runtime['minInstances'] == 0
+          assert runtime['maxInstances'] >= 1
+          assert runtime['imagePolicy'] == 'digest-only'
+          assert runtime['serviceAccountPolicy'] == 'per-service'
+          assert runtime['terminationGraceSeconds'] == 45
+          assert runtime['readinessBeforeDrain'] is True
+
+          assert document['kubernetes'] == {
+              'startupPath': '/startupz',
+              'livenessPath': '/healthz',
+              'readinessPath': '/readyz',
+          }
+          assert document['neon']['state'] == 'pending-external-provisioning'
+
+          raw = path.read_text()
+          forbidden = [
+              'BEGIN PRIVATE KEY',
+              'postgresql://',
+              'service_account_key',
+              'client_secret',
+          ]
+          for token in forbidden:
+              assert token not in raw, token
+          PY
+
+      - name: Check patch whitespace
+        run: git diff --check
