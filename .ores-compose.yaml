@@ -1,6 +1,11 @@
 schema_version: ores.compose.v1
+# ores-compose-nano-id: 60DaM_wy_C4zwiFqJ2HZn
 project: flags-2-env
 allow_lazy_start: false
+source:
+  repository: https://github.com/flags-2-env/flags-2-env-monorepo.git
+  commit: e821c3c71b6939ab68006486ab530cfdbba37b1a
+  checkout_dir: .ores/sources/flags-2-env-monorepo
 # Requires ORESoftware/ores-compose#156. Configure ORES_LOCAL_OBJECT_ACCESS_KEY,
 # ORES_LOCAL_OBJECT_SECRET_KEY and ORES_LOCAL_MC_HOST in project-root .env.
 services:
